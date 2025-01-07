@@ -92,6 +92,10 @@
             "StackExchange.Redis": {
               "target": "Package",
               "version": "[2.8.24, )"
+            },
+            "prometheus-net.AspNetCore": {
+              "target": "Package",
+              "version": "[8.2.1, )"
             }
           },
           "imports": [

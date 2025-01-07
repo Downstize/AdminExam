@@ -36,7 +36,11 @@ public class RecipesServiceImpl : Recipes.RecipesBase
             CookTime = request.CookTime,
             Instructions = request.Instructions
         };
-
+        //
+//Get методы сразу из БД тянули, CUD - должны сначала данные отправлять в кролика, после прослушить очередь и вытащить от туда данные и уже их положить в БД
+//Реализовать задержку не кешированных данных перед выполнением запроса, а кешированные показывать сразу (для демонстрации работы редиски)
+//Накатить доп контейнер для посгры (UI), чтоб через неё смотреть БД
+        //
         _dbContext.Recipes.Add(recipe);
         await _dbContext.SaveChangesAsync();
 

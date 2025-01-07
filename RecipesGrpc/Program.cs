@@ -1,6 +1,8 @@
 using EasyNetQ;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
 using Polly;
+using Prometheus;
 using RecipesGrpc.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -29,10 +31,24 @@ builder.Services.AddSingleton<RabbitMqPublisher>();
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenAnyIP(5085, listenOptions =>
+    {
+        listenOptions.Protocols = HttpProtocols.Http2;
+    });
+    options.ListenAnyIP(5086, listenOptions =>
+    {
+        listenOptions.Protocols = HttpProtocols.Http1; // Prometheus
+    });
+});
+
 // Настройка gRPC
 builder.Services.AddGrpc();
 
 var app = builder.Build();
+
+app.MapMetrics();
 
 // Выполнение миграции базы данных с использованием Polly
 using (var scope = app.Services.CreateScope())

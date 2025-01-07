@@ -1,51 +1,45 @@
 version: '3.8'
 
 services:
-  # gateway:
-  #   build:
-  #     context: ./RecipesGateway
-  #   ports:
-  #     - "5002:8080"
-  #   environment:
-  #     - ASPNETCORE_ENVIRONMENT=Development
-  #   depends_on:
-  #     - grpc-service
-  #     - redis
+  gateway:
+    build:
+      context: ./RecipesGateway
+    ports:
+      - "5002:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    depends_on:
+      - grpc-service
+      - redis
 
-  # grpc-service:
-  #   build:
-  #     context: ./RecipesGrpc
-  #   ports:
-  #     - "5085:5085"
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #   environment:
-  #     - DOTNET_ENVIRONMENT=Development
-  #     - ConnectionStrings__PostgresConnection=Host=postgres;Port=5432;Database=recipesdb;Username=postgres;Password=postgres
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-  #   entrypoint: >
-  #     sh -c "until pg_isready -h postgres -U postgres; do echo waiting for postgres; sleep 2; done;
-  #     dotnet RecipesGrpc.dll"
+  grpc-service:
+    build:
+      context: ./RecipesGrpc
+    ports:
+      - "5085:5085"
+    depends_on:
+      - postgres
+    environment:
+      - DOTNET_ENVIRONMENT=Development
+      - ConnectionStrings__PostgresConnection=Host=postgres;Port=5432;Database=recipesdb;Username=postgres;Password=postgres
+    entrypoint: >
+      sh -c "until pg_isready -h postgres -U postgres; do echo waiting for postgres; sleep 2; done;
+      dotnet RecipesGrpc.dll"
 
-  # postgres:
-  #   image: postgres:15
-  #   container_name: postgres
-  #   environment:
-  #     POSTGRES_USER: postgres
-  #     POSTGRES_PASSWORD: postgres
-  #     POSTGRES_DB: recipesdb
-  #   ports:
-  #     - "6432:5432"
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: recipesdb
+    ports:
+      - "6432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7
@@ -63,41 +57,41 @@ services:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
 
-  # prometheus:
-  #   image: prom/prometheus
-  #   container_name: prometheus
-  #   volumes:
-  #     - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-  #   ports:
-  #     - "9090:9090"
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
 
-  # grafana:
-  #   image: grafana/grafana
-  #   container_name: grafana
-  #   ports:
-  #     - "3000:3000"
-  #   environment:
-  #     - GF_SECURITY_ADMIN_USER=admin
-  #     - GF_SECURITY_ADMIN_PASSWORD=admin
-  #   depends_on:
-  #     - prometheus
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
 
-  # opensearch:
-  #   image: opensearchproject/opensearch:2.10.0
-  #   container_name: opensearch
-  #   environment:
-  #     - discovery.type=single-node
-  #     - plugins.security.disabled=true
-  #   ports:
-  #     - "9200:9200"
-  #     - "9300:9300"
+  opensearch:
+    image: opensearchproject/opensearch:2.10.0
+    container_name: opensearch
+    environment:
+      - discovery.type=single-node
+      - plugins.security.disabled=true
+    ports:
+      - "9200:9200"
+      - "9300:9300"
 
-  # opensearch-dashboards:
-  #   image: opensearchproject/opensearch-dashboards:2.10.0
-  #   container_name: opensearch-dashboards
-  #   ports:
-  #     - "5601:5601"
-  #   environment:
-  #     - OPENSEARCH_HOSTS=http://opensearch:9200
-  #   depends_on:
-  #     - opensearch
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.10.0
+    container_name: opensearch-dashboards
+    ports:
+      - "5601:5601"
+    environment:
+      - OPENSEARCH_HOSTS=http://opensearch:9200
+    depends_on:
+      - opensearch
