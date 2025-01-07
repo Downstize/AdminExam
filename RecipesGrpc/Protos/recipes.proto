@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+option csharp_namespace = "RecipesGrpc";
+
+service Recipes {
+  rpc GetRecipe(GetRecipeRequest) returns (GetRecipeResponse);
+  rpc ListRecipes(ListRecipesRequest) returns (ListRecipesResponse);
+  rpc CreateRecipe(CreateRecipeRequest) returns (CreateRecipeResponse);
+  rpc UpdateRecipe(UpdateRecipeRequest) returns (UpdateRecipeResponse);
+  rpc DeleteRecipe(DeleteRecipeRequest) returns (DeleteRecipeResponse);
+}
+
+message GetRecipeRequest {
+  int32 id = 1;
+}
+
+message GetRecipeResponse {
+  Recipe recipe = 1;
+}
+
+message ListRecipesRequest {}
+
+message ListRecipesResponse {
+  repeated Recipe recipes = 1;
+}
+
+message CreateRecipeRequest {
+  string name = 1;
+  string ingredients = 2;
+  int32 prep_time = 3;
+  int32 cook_time = 4;
+  string instructions = 5;
+}
+
+message CreateRecipeResponse {
+  int32 id = 1;
+}
+
+message UpdateRecipeRequest {
+  int32 id = 1;
+  string name = 2;
+  string ingredients = 3;
+  int32 prep_time = 4;
+  int32 cook_time = 5;
+  string instructions = 6;
+}
+
+message UpdateRecipeResponse {
+  bool success = 1;
+}
+
+message DeleteRecipeRequest {
+  int32 id = 1;
+}
+
+message DeleteRecipeResponse {
+  bool success = 1;
+}
+
+message Recipe {
+  int32 id = 1;
+  string name = 2;
+  string ingredients = 3;
+  int32 prep_time = 4;
+  int32 cook_time = 5;
+  string instructions = 6;
+}

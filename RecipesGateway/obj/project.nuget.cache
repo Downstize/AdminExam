@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "dgSpecHash": "JM//vIMKC6w=",
+  "success": true,
+  "projectFilePath": "/Users/downstize/С# Projects/AdminExam/RecipesGateway/RecipesGateway.csproj",
+  "expectedPackageFiles": [
+    "/Users/downstize/.nuget/packages/google.protobuf/3.29.2/google.protobuf.3.29.2.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/grpc.core.api/2.67.0/grpc.core.api.2.67.0.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/grpc.net.client/2.67.0/grpc.net.client.2.67.0.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/grpc.net.clientfactory/2.67.0/grpc.net.clientfactory.2.67.0.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/grpc.net.common/2.67.0/grpc.net.common.2.67.0.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/grpc.tools/2.68.1/grpc.tools.2.68.1.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/microsoft.extensions.apidescription.server/6.0.5/microsoft.extensions.apidescription.server.6.0.5.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/microsoft.extensions.dependencyinjection/6.0.0/microsoft.extensions.dependencyinjection.6.0.0.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/microsoft.extensions.dependencyinjection.abstractions/6.0.0/microsoft.extensions.dependencyinjection.abstractions.6.0.0.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/microsoft.extensions.http/6.0.0/microsoft.extensions.http.6.0.0.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/microsoft.extensions.logging/6.0.0/microsoft.extensions.logging.6.0.0.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/microsoft.extensions.logging.abstractions/6.0.0/microsoft.extensions.logging.abstractions.6.0.0.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/microsoft.extensions.options/6.0.0/microsoft.extensions.options.6.0.0.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/microsoft.extensions.primitives/6.0.0/microsoft.extensions.primitives.6.0.0.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/microsoft.openapi/1.6.14/microsoft.openapi.1.6.14.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/pipelines.sockets.unofficial/2.2.8/pipelines.sockets.unofficial.2.2.8.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/stackexchange.redis/2.8.24/stackexchange.redis.2.8.24.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/swashbuckle.aspnetcore/6.6.2/swashbuckle.aspnetcore.6.6.2.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/swashbuckle.aspnetcore.swagger/6.6.2/swashbuckle.aspnetcore.swagger.6.6.2.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/swashbuckle.aspnetcore.swaggergen/6.6.2/swashbuckle.aspnetcore.swaggergen.6.6.2.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/swashbuckle.aspnetcore.swaggerui/6.6.2/swashbuckle.aspnetcore.swaggerui.6.6.2.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/system.diagnostics.diagnosticsource/6.0.0/system.diagnostics.diagnosticsource.6.0.0.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/system.io.pipelines/5.0.1/system.io.pipelines.5.0.1.nupkg.sha512",
+    "/Users/downstize/.nuget/packages/system.runtime.compilerservices.unsafe/6.0.0/system.runtime.compilerservices.unsafe.6.0.0.nupkg.sha512"
+  ],
+  "logs": []
+}
