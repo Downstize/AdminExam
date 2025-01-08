@@ -3,22 +3,18 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
 using Polly;
 using Prometheus;
-using RecipesGrpc;
 using RecipesGrpc.Message;
 using RecipesGrpc.Model;
 using RecipesGrpc.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Настройка DbContext
 builder.Services.AddDbContext<RecipesDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("PostgresConnection")));
 
-// Регистрация зависимостей
 builder.Services.AddSingleton<RedisCacheService>();
 builder.Services.AddScoped<RecipesServiceImpl>();
 
-// Подключение RabbitMQ
 builder.Services.AddSingleton<IBus>(_ =>
 {
     var amqpConnection = builder.Configuration.GetConnectionString("AutoRabbitMQ");
@@ -27,7 +23,6 @@ builder.Services.AddSingleton<IBus>(_ =>
     return bus;
 });
 
-// Настройка логирования
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 
@@ -39,27 +34,24 @@ builder.WebHost.ConfigureKestrel(options =>
     });
     options.ListenAnyIP(5086, listenOptions =>
     {
-        listenOptions.Protocols = HttpProtocols.Http1; // Prometheus
+        listenOptions.Protocols = HttpProtocols.Http1;
     });
 });
 
-// Настройка gRPC
 builder.Services.AddGrpc();
 
 var app = builder.Build();
 
-// Логика RabbitMQ подписки
 var bus = app.Services.GetRequiredService<IBus>();
 
 try
 {
     var subscriberId = $"RecipesGrpc@{Environment.MachineName}";
 
-    for (int i = 0; i < 5; i++) // Максимум 5 попыток подписки
+    for (int i = 0; i < 5; i++)
     {
         try
         {
-            // Подписка на сообщения RabbitMQ
             await bus.PubSub.SubscribeAsync<RecipeMessage>(subscriberId, async message =>
             {
                 switch (message)
@@ -77,12 +69,12 @@ try
             });
 
             Console.WriteLine("Успешная подписка на сообщения RabbitMQ.");
-            break; // Если подписка успешна, выходим из цикла
+            break;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Попытка {i + 1} подписаться на RabbitMQ не удалась: {ex.Message}");
-            await Task.Delay(TimeSpan.FromSeconds(5)); // Ждем 5 секунд перед следующей попыткой
+            await Task.Delay(TimeSpan.FromSeconds(5));
         }
     }
 }
@@ -111,8 +103,7 @@ static async Task HandleCreateRecipeMessage(RecipeMessage message, IServiceProvi
 
     await dbContext.Recipes.AddAsync(recipe);
     await dbContext.SaveChangesAsync();
-
-    // Обновляем кэш всех рецептов
+    
     var allRecipes = await dbContext.Recipes.ToListAsync();
     await redisCacheService.SetCacheAsync("all_recipes", allRecipes, TimeSpan.FromMinutes(10));
 
@@ -130,7 +121,6 @@ static async Task HandleUpdateRecipeMessage(RecipeMessage message, IServiceProvi
     var recipe = await dbContext.Recipes.FindAsync(message.Id);
     if (recipe != null)
     {
-        // Обновляем данные рецепта
         recipe.Name = message.Name;
         recipe.Ingredients = message.Ingredients;
         recipe.PrepTime = message.PrepTime;
@@ -139,12 +129,10 @@ static async Task HandleUpdateRecipeMessage(RecipeMessage message, IServiceProvi
 
         dbContext.Recipes.Update(recipe);
         await dbContext.SaveChangesAsync();
-
-        // Удаляем кеш для конкретного рецепта
+        
         var cacheKey = $"recipe_{message.Id}";
         await redisCacheService.RemoveCacheAsync(cacheKey);
-
-        // Обновляем кеш для всех рецептов
+        
         var allRecipes = await dbContext.Recipes.ToListAsync();
         await redisCacheService.SetCacheAsync("all_recipes", allRecipes, TimeSpan.FromMinutes(10));
 
@@ -168,12 +156,10 @@ static async Task HandleDeleteRecipeMessage(RecipeMessage message, IServiceProvi
     {
         dbContext.Recipes.Remove(recipe);
         await dbContext.SaveChangesAsync();
-
-        // Удаляем кеш для конкретного рецепта
+        
         var cacheKey = $"recipe_{message.Id}";
         await redisCacheService.RemoveCacheAsync(cacheKey);
-
-        // Обновляем кеш для всех рецептов
+        
         var allRecipes = await dbContext.Recipes.ToListAsync();
         await redisCacheService.SetCacheAsync("all_recipes", allRecipes, TimeSpan.FromMinutes(10));
 
@@ -186,7 +172,6 @@ static async Task HandleDeleteRecipeMessage(RecipeMessage message, IServiceProvi
 }
 
 
-// Безопасное завершение работы с RabbitMQ
 app.Lifetime.ApplicationStopping.Register(() =>
 {
     Console.WriteLine("Завершение работы с RabbitMQ...");
@@ -196,7 +181,6 @@ app.Lifetime.ApplicationStopping.Register(() =>
 
 app.MapMetrics();
 
-// Выполнение миграции базы данных с использованием Polly
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<RecipesDbContext>();
@@ -212,7 +196,6 @@ using (var scope = app.Services.CreateScope())
     retryPolicy.Execute(() => dbContext.Database.Migrate());
 }
 
-// Регистрация gRPC сервиса
 app.MapGrpcService<RecipesServiceImpl>();
 app.MapGet("/", () => "gRPC Server is running!");
 

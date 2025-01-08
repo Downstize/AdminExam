@@ -31,8 +31,7 @@ public class RecipesServiceImpl : Recipes.RecipesBase
     try
     {
         _logger.LogInformation("CreateRecipe called with Name: {Name}", request.Name);
-
-        // Сохраняем рецепт в базе данных
+        
         var recipe = new RecipeModel
         {
             Name = request.Name,
@@ -44,12 +43,10 @@ public class RecipesServiceImpl : Recipes.RecipesBase
 
         await _dbContext.Recipes.AddAsync(recipe);
         await _dbContext.SaveChangesAsync();
-
-        // Обновляем кэш всех рецептов
+        
         var allRecipes = await _dbContext.Recipes.ToListAsync();
         await _redisCacheService.SetCacheAsync("all_recipes", allRecipes, TimeSpan.FromMinutes(10));
-
-        // Отправляем сообщение в RabbitMQ
+        
         var recipeMessage = new RecipeMessage
         {
             Id = recipe.Id,
@@ -63,7 +60,6 @@ public class RecipesServiceImpl : Recipes.RecipesBase
 
         _logger.LogInformation("Recipe created with ID: {Id} and message sent to RabbitMQ.", recipe.Id);
 
-        // Возвращаем ID созданного рецепта
         return new CreateRecipeResponse
         {
             Id = recipe.Id
@@ -82,8 +78,7 @@ public class RecipesServiceImpl : Recipes.RecipesBase
         try
         {
             _logger.LogInformation("UpdateRecipe called with ID: {Id}", request.Id);
-
-            // Формируем сообщение и публикуем его в RabbitMQ
+            
             var recipeMessage = new RecipeMessage
             {
                 Id = request.Id,
@@ -111,8 +106,7 @@ public class RecipesServiceImpl : Recipes.RecipesBase
         try
         {
             _logger.LogInformation("DeleteRecipe called with ID: {Id}", request.Id);
-
-            // Формируем сообщение и публикуем его в RabbitMQ
+            
             var recipeMessage = new RecipeMessage
             {
                 Id = request.Id
@@ -145,8 +139,7 @@ public class RecipesServiceImpl : Recipes.RecipesBase
             {
                 _logger.LogInformation("GetRecipe cache hit for Recipe ID: {Id}", request.Id);
                 await PublishLogToRabbitMQ("GetRecipe", request.Id, "Cache hit");
-
-                // Немедленно возвращаем кешированные данные
+                
                 return new GetRecipeResponse
                 {
                     Recipe = new Recipe
@@ -160,8 +153,7 @@ public class RecipesServiceImpl : Recipes.RecipesBase
                     }
                 };
             }
-
-            // Добавляем задержку для демонстрации работы с некешированными данными
+            
             _logger.LogInformation("Cache miss for Recipe ID: {Id}. Simulating delay.", request.Id);
             await Task.Delay(TimeSpan.FromSeconds(3));
 
@@ -229,14 +221,14 @@ public class RecipesServiceImpl : Recipes.RecipesBase
             }
 
             _logger.LogInformation("Cache miss for ListRecipes. Simulating delay.");
-            await Task.Delay(TimeSpan.FromSeconds(3)); // Задержка для демонстрации работы без кеша
+            await Task.Delay(TimeSpan.FromSeconds(3));
 
             var recipes = await _dbContext.Recipes.ToListAsync();
             if (recipes == null || recipes.Count == 0)
             {
                 _logger.LogWarning("ListRecipes found no recipes.");
                 await PublishLogToRabbitMQ("ListRecipes", null, "No recipes found in database.");
-                return new ListRecipesResponse(); // Возвращаем пустой ответ
+                return new ListRecipesResponse();
             }
 
             // Сохраняем результат в кэш

@@ -16,10 +16,8 @@ public class LogProcessor
     {
         _rabbitMqBus.PubSub.SubscribeAsync<dynamic>("LogSubscriber", async message =>
         {
-            // Логируем сообщение из RabbitMQ через Serilog
             Log.Information("Log received from RabbitMQ: {@Message}", message);
 
-            // Отправляем лог в Logstash через Serilog
             Log.Logger.Information("Processed log: {@Message}", message);
         });
     }

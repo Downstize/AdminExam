@@ -17,7 +17,6 @@ public class RedisCacheService
         }
         catch (Exception ex)
         {
-            // Логирование ошибки
             Console.WriteLine($"Ошибка подключения к Redis: {ex.Message}");
             throw;
         }
