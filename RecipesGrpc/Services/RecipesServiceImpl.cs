@@ -27,48 +27,54 @@ public class RecipesServiceImpl : Recipes.RecipesBase
     }
 
     public override async Task<CreateRecipeResponse> CreateRecipe(CreateRecipeRequest request, ServerCallContext context)
+{
+    try
     {
-        try
+        _logger.LogInformation("CreateRecipe called with Name: {Name}", request.Name);
+
+        // Сохраняем рецепт в базе данных
+        var recipe = new RecipeModel
         {
-            _logger.LogInformation("CreateRecipe called with Name: {Name}", request.Name);
+            Name = request.Name,
+            Ingredients = request.Ingredients,
+            PrepTime = request.PrepTime,
+            CookTime = request.CookTime,
+            Instructions = request.Instructions
+        };
 
-            // Симулируем задержку для демонстрации
-            await Task.Delay(TimeSpan.FromSeconds(3));
+        await _dbContext.Recipes.AddAsync(recipe);
+        await _dbContext.SaveChangesAsync();
 
-            var recipe = new RecipeModel
-            {
-                Name = request.Name,
-                Ingredients = request.Ingredients,
-                PrepTime = request.PrepTime,
-                CookTime = request.CookTime,
-                Instructions = request.Instructions
-            };
+        // Обновляем кэш всех рецептов
+        var allRecipes = await _dbContext.Recipes.ToListAsync();
+        await _redisCacheService.SetCacheAsync("all_recipes", allRecipes, TimeSpan.FromMinutes(10));
 
-            _dbContext.Recipes.Add(recipe);
-            await _dbContext.SaveChangesAsync();
-
-            // Кэшируем созданный рецепт
-            var cacheKey = $"recipe_{recipe.Id}";
-            await _redisCacheService.SetCacheAsync(cacheKey, recipe, TimeSpan.FromMinutes(10));
-
-            // Обновляем кэш для всех рецептов
-            var allRecipes = await _dbContext.Recipes.ToListAsync();
-            await _redisCacheService.SetCacheAsync("all_recipes", allRecipes, TimeSpan.FromMinutes(10));
-
-            await PublishLogToRabbitMQ("CreateRecipe", recipe.Id, "Recipe created successfully");
-
-            _logger.LogInformation("CreateRecipe succeeded for Recipe ID: {Id}", recipe.Id);
-
-            return new CreateRecipeResponse { Id = recipe.Id };
-        }
-        catch (Exception ex)
+        // Отправляем сообщение в RabbitMQ
+        var recipeMessage = new RecipeMessage
         {
-            _logger.LogError(ex, "Error in CreateRecipe for Name: {Name}", request.Name);
-            await PublishLogToRabbitMQ("CreateRecipe", null, $"Error: {ex.Message}");
-            throw new RpcException(new Status(StatusCode.Internal, "An internal error occurred in CreateRecipe"));
-        }
+            Id = recipe.Id,
+            Name = recipe.Name,
+            Ingredients = recipe.Ingredients,
+            PrepTime = recipe.PrepTime,
+            CookTime = recipe.CookTime,
+            Instructions = recipe.Instructions
+        };
+        await _rabbitMqBus.PubSub.PublishAsync(recipeMessage, "recipes.create");
+
+        _logger.LogInformation("Recipe created with ID: {Id} and message sent to RabbitMQ.", recipe.Id);
+
+        // Возвращаем ID созданного рецепта
+        return new CreateRecipeResponse
+        {
+            Id = recipe.Id
+        };
     }
-
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error in CreateRecipe for Name: {Name}", request.Name);
+        throw new RpcException(new Status(StatusCode.Internal, "An internal error occurred in CreateRecipe"));
+    }
+}
 
 
     public override async Task<UpdateRecipeResponse> UpdateRecipe(UpdateRecipeRequest request, ServerCallContext context)
@@ -77,49 +83,28 @@ public class RecipesServiceImpl : Recipes.RecipesBase
         {
             _logger.LogInformation("UpdateRecipe called with ID: {Id}", request.Id);
 
-            // Симулируем задержку для демонстрации работы с некешированными данными
-            await Task.Delay(TimeSpan.FromSeconds(3));
-
-            var recipe = await _dbContext.Recipes.FindAsync(request.Id);
-            if (recipe == null)
+            // Формируем сообщение и публикуем его в RabbitMQ
+            var recipeMessage = new RecipeMessage
             {
-                _logger.LogWarning("UpdateRecipe failed: Recipe with ID {Id} not found", request.Id);
-                await PublishLogToRabbitMQ("UpdateRecipe", request.Id, "Recipe not found");
-                throw new RpcException(new Status(StatusCode.NotFound, $"Recipe with ID {request.Id} not found."));
-            }
+                Id = request.Id,
+                Name = request.Name,
+                Ingredients = request.Ingredients,
+                PrepTime = request.PrepTime,
+                CookTime = request.CookTime,
+                Instructions = request.Instructions
+            };
+            await _rabbitMqBus.PubSub.PublishAsync(recipeMessage, "recipes.update");
 
-            // Обновление данных рецепта
-            recipe.Name = request.Name;
-            recipe.Ingredients = request.Ingredients;
-            recipe.PrepTime = request.PrepTime;
-            recipe.CookTime = request.CookTime;
-            recipe.Instructions = request.Instructions;
-
-            await _dbContext.SaveChangesAsync();
-
-            // Сохранение обновленных данных в кеш
-            var cacheKey = $"recipe_{recipe.Id}";
-            await _redisCacheService.SetCacheAsync(cacheKey, recipe, TimeSpan.FromMinutes(10));
-
-            // Обновляем кэш для всех рецептов
-            var allRecipes = await _dbContext.Recipes.ToListAsync();
-            await _redisCacheService.SetCacheAsync("all_recipes", allRecipes, TimeSpan.FromMinutes(10));
-
-            await PublishLogToRabbitMQ("UpdateRecipe", recipe.Id, "Recipe updated successfully");
-
-            _logger.LogInformation("UpdateRecipe succeeded for Recipe ID: {Id}", recipe.Id);
+            _logger.LogInformation("Recipe update message sent to RabbitMQ.");
 
             return new UpdateRecipeResponse { Success = true };
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in UpdateRecipe for ID: {Id}", request.Id);
-            await PublishLogToRabbitMQ("UpdateRecipe", request.Id, $"Error: {ex.Message}");
             throw;
         }
     }
-
-
 
     public override async Task<DeleteRecipeResponse> DeleteRecipe(DeleteRecipeRequest request, ServerCallContext context)
     {
@@ -127,38 +112,20 @@ public class RecipesServiceImpl : Recipes.RecipesBase
         {
             _logger.LogInformation("DeleteRecipe called with ID: {Id}", request.Id);
 
-            // Симулируем задержку для демонстрации работы без кеша
-            await Task.Delay(TimeSpan.FromSeconds(3));
-
-            var recipe = await _dbContext.Recipes.FindAsync(request.Id);
-            if (recipe == null)
+            // Формируем сообщение и публикуем его в RabbitMQ
+            var recipeMessage = new RecipeMessage
             {
-                _logger.LogWarning("DeleteRecipe failed: Recipe with ID {Id} not found", request.Id);
-                await PublishLogToRabbitMQ("DeleteRecipe", request.Id, "Recipe not found");
-                throw new RpcException(new Status(StatusCode.NotFound, $"Recipe with ID {request.Id} not found."));
-            }
+                Id = request.Id
+            };
+            await _rabbitMqBus.PubSub.PublishAsync(recipeMessage, "recipes.delete");
 
-            _dbContext.Recipes.Remove(recipe);
-            await _dbContext.SaveChangesAsync();
-
-            // Удаляем кэш конкретного рецепта
-            var cacheKey = $"recipe_{recipe.Id}";
-            await _redisCacheService.RemoveCacheAsync(cacheKey);
-
-            // Обновляем кэш для всех рецептов
-            var allRecipes = await _dbContext.Recipes.ToListAsync();
-            await _redisCacheService.SetCacheAsync("all_recipes", allRecipes, TimeSpan.FromMinutes(10));
-
-            await PublishLogToRabbitMQ("DeleteRecipe", recipe.Id, "Recipe deleted successfully");
-
-            _logger.LogInformation("DeleteRecipe succeeded for Recipe ID: {Id}", recipe.Id);
+            _logger.LogInformation("Recipe delete message sent to RabbitMQ.");
 
             return new DeleteRecipeResponse { Success = true };
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in DeleteRecipe for ID: {Id}", request.Id);
-            await PublishLogToRabbitMQ("DeleteRecipe", request.Id, $"Error: {ex.Message}");
             throw;
         }
     }
