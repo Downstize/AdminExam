@@ -32,6 +32,9 @@ public class RecipesServiceImpl : Recipes.RecipesBase
         {
             _logger.LogInformation("CreateRecipe called with Name: {Name}", request.Name);
 
+            // Симулируем задержку для демонстрации
+            await Task.Delay(TimeSpan.FromSeconds(3));
+
             var recipe = new RecipeModel
             {
                 Name = request.Name,
@@ -44,8 +47,13 @@ public class RecipesServiceImpl : Recipes.RecipesBase
             _dbContext.Recipes.Add(recipe);
             await _dbContext.SaveChangesAsync();
 
+            // Кэшируем созданный рецепт
             var cacheKey = $"recipe_{recipe.Id}";
             await _redisCacheService.SetCacheAsync(cacheKey, recipe, TimeSpan.FromMinutes(10));
+
+            // Обновляем кэш для всех рецептов
+            var allRecipes = await _dbContext.Recipes.ToListAsync();
+            await _redisCacheService.SetCacheAsync("all_recipes", allRecipes, TimeSpan.FromMinutes(10));
 
             await PublishLogToRabbitMQ("CreateRecipe", recipe.Id, "Recipe created successfully");
 
@@ -61,11 +69,16 @@ public class RecipesServiceImpl : Recipes.RecipesBase
         }
     }
 
+
+
     public override async Task<UpdateRecipeResponse> UpdateRecipe(UpdateRecipeRequest request, ServerCallContext context)
     {
         try
         {
             _logger.LogInformation("UpdateRecipe called with ID: {Id}", request.Id);
+
+            // Симулируем задержку для демонстрации работы с некешированными данными
+            await Task.Delay(TimeSpan.FromSeconds(3));
 
             var recipe = await _dbContext.Recipes.FindAsync(request.Id);
             if (recipe == null)
@@ -75,6 +88,7 @@ public class RecipesServiceImpl : Recipes.RecipesBase
                 throw new RpcException(new Status(StatusCode.NotFound, $"Recipe with ID {request.Id} not found."));
             }
 
+            // Обновление данных рецепта
             recipe.Name = request.Name;
             recipe.Ingredients = request.Ingredients;
             recipe.PrepTime = request.PrepTime;
@@ -83,8 +97,13 @@ public class RecipesServiceImpl : Recipes.RecipesBase
 
             await _dbContext.SaveChangesAsync();
 
+            // Сохранение обновленных данных в кеш
             var cacheKey = $"recipe_{recipe.Id}";
             await _redisCacheService.SetCacheAsync(cacheKey, recipe, TimeSpan.FromMinutes(10));
+
+            // Обновляем кэш для всех рецептов
+            var allRecipes = await _dbContext.Recipes.ToListAsync();
+            await _redisCacheService.SetCacheAsync("all_recipes", allRecipes, TimeSpan.FromMinutes(10));
 
             await PublishLogToRabbitMQ("UpdateRecipe", recipe.Id, "Recipe updated successfully");
 
@@ -100,11 +119,16 @@ public class RecipesServiceImpl : Recipes.RecipesBase
         }
     }
 
+
+
     public override async Task<DeleteRecipeResponse> DeleteRecipe(DeleteRecipeRequest request, ServerCallContext context)
     {
         try
         {
             _logger.LogInformation("DeleteRecipe called with ID: {Id}", request.Id);
+
+            // Симулируем задержку для демонстрации работы без кеша
+            await Task.Delay(TimeSpan.FromSeconds(3));
 
             var recipe = await _dbContext.Recipes.FindAsync(request.Id);
             if (recipe == null)
@@ -117,8 +141,13 @@ public class RecipesServiceImpl : Recipes.RecipesBase
             _dbContext.Recipes.Remove(recipe);
             await _dbContext.SaveChangesAsync();
 
+            // Удаляем кэш конкретного рецепта
             var cacheKey = $"recipe_{recipe.Id}";
             await _redisCacheService.RemoveCacheAsync(cacheKey);
+
+            // Обновляем кэш для всех рецептов
+            var allRecipes = await _dbContext.Recipes.ToListAsync();
+            await _redisCacheService.SetCacheAsync("all_recipes", allRecipes, TimeSpan.FromMinutes(10));
 
             await PublishLogToRabbitMQ("DeleteRecipe", recipe.Id, "Recipe deleted successfully");
 
@@ -134,6 +163,8 @@ public class RecipesServiceImpl : Recipes.RecipesBase
         }
     }
 
+
+
     public override async Task<GetRecipeResponse> GetRecipe(GetRecipeRequest request, ServerCallContext context)
     {
         try
@@ -147,6 +178,8 @@ public class RecipesServiceImpl : Recipes.RecipesBase
             {
                 _logger.LogInformation("GetRecipe cache hit for Recipe ID: {Id}", request.Id);
                 await PublishLogToRabbitMQ("GetRecipe", request.Id, "Cache hit");
+
+                // Немедленно возвращаем кешированные данные
                 return new GetRecipeResponse
                 {
                     Recipe = new Recipe
@@ -160,6 +193,10 @@ public class RecipesServiceImpl : Recipes.RecipesBase
                     }
                 };
             }
+
+            // Добавляем задержку для демонстрации работы с некешированными данными
+            _logger.LogInformation("Cache miss for Recipe ID: {Id}. Simulating delay.", request.Id);
+            await Task.Delay(TimeSpan.FromSeconds(3));
 
             var recipe = await _dbContext.Recipes.FindAsync(request.Id);
             if (recipe == null)
@@ -195,20 +232,54 @@ public class RecipesServiceImpl : Recipes.RecipesBase
         }
     }
 
+
     public override async Task<ListRecipesResponse> ListRecipes(ListRecipesRequest request, ServerCallContext context)
     {
         try
         {
             _logger.LogInformation("ListRecipes called");
 
-            var recipes = await _dbContext.Recipes.ToListAsync();
+            var cacheKey = "all_recipes";
+            var cachedRecipes = await _redisCacheService.GetCacheAsync<List<RecipeModel>>(cacheKey);
 
+            if (cachedRecipes != null)
+            {
+                _logger.LogInformation("ListRecipes cache hit. Returning cached recipes.");
+                await PublishLogToRabbitMQ("ListRecipes", null, "Cache hit for ListRecipes");
+
+                var response = new ListRecipesResponse();
+                response.Recipes.AddRange(cachedRecipes.Select(r => new Recipe
+                {
+                    Id = r.Id,
+                    Name = r.Name,
+                    Ingredients = r.Ingredients,
+                    PrepTime = r.PrepTime,
+                    CookTime = r.CookTime,
+                    Instructions = r.Instructions
+                }));
+
+                return response;
+            }
+
+            _logger.LogInformation("Cache miss for ListRecipes. Simulating delay.");
+            await Task.Delay(TimeSpan.FromSeconds(3)); // Задержка для демонстрации работы без кеша
+
+            var recipes = await _dbContext.Recipes.ToListAsync();
+            if (recipes == null || recipes.Count == 0)
+            {
+                _logger.LogWarning("ListRecipes found no recipes.");
+                await PublishLogToRabbitMQ("ListRecipes", null, "No recipes found in database.");
+                return new ListRecipesResponse(); // Возвращаем пустой ответ
+            }
+
+            // Сохраняем результат в кэш
+            await _redisCacheService.SetCacheAsync(cacheKey, recipes, TimeSpan.FromMinutes(10));
             _logger.LogInformation("ListRecipes succeeded: Found {Count} recipes", recipes.Count);
 
             await PublishLogToRabbitMQ("ListRecipes", null, $"Found {recipes.Count} recipes");
 
-            var response = new ListRecipesResponse();
-            response.Recipes.AddRange(recipes.Select(r => new Recipe
+            var responseWithDbData = new ListRecipesResponse();
+            responseWithDbData.Recipes.AddRange(recipes.Select(r => new Recipe
             {
                 Id = r.Id,
                 Name = r.Name,
@@ -218,7 +289,7 @@ public class RecipesServiceImpl : Recipes.RecipesBase
                 Instructions = r.Instructions
             }));
 
-            return response;
+            return responseWithDbData;
         }
         catch (Exception ex)
         {
@@ -227,6 +298,7 @@ public class RecipesServiceImpl : Recipes.RecipesBase
             throw;
         }
     }
+
 
     private async Task PublishLogToRabbitMQ(string action, int? recipeId, string message)
     {
