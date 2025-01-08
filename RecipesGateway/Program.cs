@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 using RecipesGrpc;
 using Serilog;
 using Serilog.Sinks.Http;
+using EasyNetQ;
+using RecipesGateway.Logs;
 
 // Настраиваем Serilog
 var logger = new LoggerConfiguration()
@@ -30,6 +32,18 @@ try
     {
         o.Address = new Uri(builder.Configuration["GrpcSettings:DomainServiceUrl"]);
     });
+
+    // Подключение RabbitMQ
+    builder.Services.AddSingleton<IBus>(_ =>
+    {
+        var amqpConnection = builder.Configuration.GetConnectionString("AutoRabbitMQ");
+        var bus = RabbitHutch.CreateBus(amqpConnection);
+        Console.WriteLine("Подключение к RabbitMQ установлено!");
+        return bus;
+    });
+
+    // Регистрация логики RabbitMQ
+    builder.Services.AddSingleton<LogProcessor>();
 
     // Добавляем контроллеры
     builder.Services.AddControllers();
@@ -71,6 +85,10 @@ try
 
     app.MapMetrics();
     app.MapControllers();
+
+    // Запускаем LogProcessor для обработки логов из RabbitMQ
+    var logProcessor = app.Services.GetRequiredService<LogProcessor>();
+    logProcessor.StartListening();
 
     app.Run();
 }
