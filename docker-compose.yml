@@ -82,6 +82,7 @@ services:
     environment:
       - discovery.type=single-node
       - plugins.security.disabled=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
     ports:
       - "9200:9200"
       - "9300:9300"
@@ -93,5 +94,16 @@ services:
       - "5601:5601"
     environment:
       - OPENSEARCH_HOSTS=http://opensearch:9200
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    depends_on:
+      - opensearch
+
+  logstash:
+    image: opensearchproject/logstash-oss-with-opensearch-output-plugin:7.16.2
+    container_name: logstash
+    volumes:
+      - ./logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+    ports:
+      - "5044:5044"
     depends_on:
       - opensearch

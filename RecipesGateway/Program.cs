@@ -1,61 +1,84 @@
 using Prometheus;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using RecipesGrpc;
+using Serilog;
+using Serilog.Sinks.Http;
 
-var builder = WebApplication.CreateBuilder(args);
+// Настраиваем Serilog
+var logger = new LoggerConfiguration()
+    .WriteTo.Console() // Логи в консоль
+    .WriteTo.Http(
+        "http://logstash:5044", // Адрес Logstash
+        queueLimitBytes: null, // Без ограничения на размер очереди
+        textFormatter: new Serilog.Formatting.Json.JsonFormatter() // Формат JSON
+    )
+    .CreateLogger();
 
-// Регистрируем gRPC клиент
-builder.Services.AddGrpcClient<Recipes.RecipesClient>(o =>
+Log.Logger = logger;
+
+try
 {
-    o.Address = new Uri(builder.Configuration["GrpcSettings:DomainServiceUrl"]);
-});
+    Log.Information("Starting up the service");
 
-// Добавляем контроллеры
-builder.Services.AddControllers();
+    var builder = WebApplication.CreateBuilder(args);
 
-// Добавляем поддержку Swagger (опционально)
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+    // Настраиваем Serilog как логгер для приложения
+    builder.Host.UseSerilog();
 
-// Настройка Kestrel для HTTP/1.1 и HTTP/2
-builder.WebHost.ConfigureKestrel(options =>
-{
-    // Порт для основного функционала (например, gRPC)
-    options.ListenAnyIP(5002, listenOptions =>
+    // Регистрируем gRPC клиент
+    builder.Services.AddGrpcClient<Recipes.RecipesClient>(o =>
     {
-        listenOptions.Protocols = HttpProtocols.Http2; // HTTP/2 для gRPC
-    });
-    
-    options.ListenAnyIP(8080, listenOptions =>
-    {
-        listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
+        o.Address = new Uri(builder.Configuration["GrpcSettings:DomainServiceUrl"]);
     });
 
-    // Порт для Prometheus метрик
-    options.ListenAnyIP(5003, listenOptions =>
+    // Добавляем контроллеры
+    builder.Services.AddControllers();
+
+    // Добавляем поддержку Swagger (опционально)
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen();
+
+    // Настройка Kestrel для HTTP/1.1 и HTTP/2
+    builder.WebHost.ConfigureKestrel(options =>
     {
-        listenOptions.Protocols = HttpProtocols.Http1; // HTTP/1.1 для метрик
+        options.ListenAnyIP(5002, listenOptions =>
+        {
+            listenOptions.Protocols = HttpProtocols.Http2; // HTTP/2 для gRPC
+        });
+
+        options.ListenAnyIP(8080, listenOptions =>
+        {
+            listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
+        });
+
+        options.ListenAnyIP(5003, listenOptions =>
+        {
+            listenOptions.Protocols = HttpProtocols.Http1; // HTTP/1.1 для метрик
+        });
     });
-});
 
-var app = builder.Build();
+    var app = builder.Build();
 
-// Используем Swagger в режиме разработки
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseSwagger();
+        app.UseSwaggerUI();
+    }
+
+    app.UseRouting();
+    app.UseHttpMetrics();
+    app.UseAuthorization();
+
+    app.MapMetrics();
+    app.MapControllers();
+
+    app.Run();
 }
-
-// Настройка метрик
-app.UseRouting(); // Убедитесь, что UseRouting идет до MapMetrics
-app.UseHttpMetrics(); // Добавляет автоматический сбор HTTP метрик
-
-app.UseAuthorization();
-
-// Регистрируем эндпоинты метрик
-app.MapMetrics(); // Эндпоинт /metrics для Prometheus
-
-app.MapControllers();
-
-app.Run();
+catch (Exception ex)
+{
+    Log.Fatal(ex, "The application failed to start correctly");
+}
+finally
+{
+    Log.CloseAndFlush();
+}
